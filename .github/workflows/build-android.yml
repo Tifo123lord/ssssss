@@ -13,13 +13,29 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: genspark-836c2d0f-bae6-43f7-a322-a5194e93f743-main
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+
+      - name: Find Flutter project
+        shell: bash
+        run: |
+          PROJECT_FILE="$(find . -type f -name pubspec.yaml \
+            -not -path '*/.dart_tool/*' \
+            -not -path '*/build/*' \
+            -print -quit)"
+
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "ERROR: pubspec.yaml was not found in the repository."
+            echo "Repository files:"
+            ls -la
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$PROJECT_FILE")"
+          echo "FLUTTER_PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Flutter project found: $PROJECT_DIR"
 
       - name: Install Java
         uses: actions/setup-java@v4
@@ -38,22 +54,26 @@ jobs:
         run: flutter doctor -v
 
       - name: Install dependencies
-        run: flutter pub get
+        shell: bash
+        run: cd "$FLUTTER_PROJECT_DIR" && flutter pub get
 
       - name: Analyze project
-        run: flutter analyze
+        shell: bash
+        run: cd "$FLUTTER_PROJECT_DIR" && flutter analyze
 
       - name: Run tests
-        run: flutter test
+        shell: bash
+        run: cd "$FLUTTER_PROJECT_DIR" && flutter test
 
       - name: Build release APK
-        run: flutter build apk --release
+        shell: bash
+        run: cd "$FLUTTER_PROJECT_DIR" && flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: world-dominion-android-apk
-          path: genspark-836c2d0f-bae6-43f7-a322-a5194e93f743-main/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.FLUTTER_PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
 ```
